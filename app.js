@@ -47,6 +47,41 @@ function normalizeString(str) {
   return (str || "").toLowerCase().replace(/\s+/g, "");
 }
 
+// Helper function to extract actual name from name field (removes rank prefix)
+function extractActualName(nameField) {
+  if (!nameField) return "";
+  
+  // Common rank prefixes to remove
+  const rankPrefixes = [
+    "lt", "lt.", "lt ", "lt. ", "lt col", "lt.col", "lt col.", "lt.col.",
+    "col", "col.", "col ", "col. ", "capt", "capt.", "capt ", "capt. ",
+    "maj", "maj.", "maj ", "maj. ", "brig", "brig.", "brig ", "brig. ",
+    "gen", "gen.", "gen ", "gen. ", "wg cdr", "wg.cdr", "wg cdr.", "wg.cdr.",
+    "squadron leader", "squadronleader", "squadron leader.", "squadronleader.",
+    "commander", "commander.", "commander ", "commander. ",
+    "captain", "captain.", "captain ", "captain. ",
+    "admiral", "admiral.", "admiral ", "admiral. "
+  ];
+  
+  let name = nameField.trim();
+  const nameLower = name.toLowerCase();
+  
+  // Try to remove rank prefix
+  for (const prefix of rankPrefixes) {
+    if (nameLower.startsWith(prefix)) {
+      name = name.substring(prefix.length).trim();
+      // Remove any remaining rank abbreviations at the start
+      name = name.replace(/^[A-Z]{1,4}\s+/, "").trim();
+      break;
+    }
+  }
+  
+  // Remove common rank patterns like "LT ", "COL ", etc. at the start
+  name = name.replace(/^[A-Z]{1,4}\s+/, "").trim();
+  
+  return name || nameField; // Fallback to original if nothing left
+}
+
 function filterList(q = null) {
   if (!dataLoaded) {
     document.getElementById("list").innerHTML = "<li>Loading data...</li>";
@@ -75,22 +110,25 @@ function filterList(q = null) {
     filtered = veterans.filter(v => {
       const matchesServiceType = v.serviceType && 
         v.serviceType.toLowerCase().includes(serviceType);
+      
+      // Extract actual name (without rank) and normalize for comparison
+      const actualName = extractActualName(v.name);
+      const normalizedActualName = normalizeString(actualName);
+      
       // Compare names without spaces to handle "RAVISHANKAR" vs "Ravi Shankar"
-      const matchesName = v.name && 
-        normalizeString(v.name).includes(normalizedNameQuery);
+      const matchesName = normalizedActualName.includes(normalizedNameQuery);
       
       return matchesServiceType && matchesName;
     });
   } else {
-    // Fallback: search in all fields if only one word provided
+    // Fallback: search only in name field (not address) if only one word provided
     const normalizedQuery = normalizeString(query);
     filtered = veterans.filter(v => {
-      const searchText = normalizeString(
-        (v.serviceType || "") + " " +
-        (v.name || "") + " " +
-        (v.address || "")
-      );
-      return searchText.includes(normalizedQuery);
+      // Extract actual name and search only in that
+      const actualName = extractActualName(v.name);
+      const normalizedActualName = normalizeString(actualName);
+      
+      return normalizedActualName.includes(normalizedQuery);
     });
   }
   
